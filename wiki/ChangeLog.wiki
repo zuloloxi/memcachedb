@@ -10,4 +10,4 @@
 2007-09-19 Steve Chu <zhuxin@staff.sina.com.cn>
     * enlarge incr value to unsigned int to conform memcache protocol, now supports max value of 4294967295.
 
-2007-09-18 Version 0.0.1 released]
+2007-09-18 Version 0.0.1 released

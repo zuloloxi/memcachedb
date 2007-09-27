@@ -1,9 +1,7 @@
-#summary One-sentence summary of this page.
-=== Todo List ===
  * allow to put the database and the log files on different disks.
  * key should not in data.data
  * better replication code merged
  * more friendly error report for db operating
 
 === Big TODO: ===
-using multithread to resolve blocked I/O, incuding checkpoint and deadlock detecting
+Using multithread to resolve blocked I/O, incuding checkpoint and deadlock detecting

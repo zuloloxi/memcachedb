@@ -1,4 +1,11 @@
 #labels Featured
+2007-09-29 Version 0.0.3 released
+
+2007-09-29 Steve Chu <zhuxin@staff.sina.com.cn>
+    * add command "flush_all" that will truncate a database, warning to use.
+    * lots of code formated
+    * Bugfix: Now using "-u" option can get proper db file mode
+
 2007-09-21 Version 0.0.2 released
 
 2007-09-20 Steve Chu <zhuxin@staff.sina.com.cn>

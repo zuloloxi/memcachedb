@@ -7,7 +7,7 @@ Simply start memcachedb with: ./memcachedb -d -r -u root -N
 
 And here is testing case:
 
-=================================================================
+{{{
 #include <stdio.h>
 #include <string.h>
 #include "memcache.h"
@@ -34,7 +34,7 @@ int main(int argc, char **argv){
    mc_free(mc);
    return 0;
 }
-====================================================================
+}}}
 
 The total time cost is: 16572 second, the db file size is 7.7 GB.
 It writes almost *12000* records per second and simultaneously does checkpoint
@@ -42,7 +42,7 @@ every 60 sec and deadlock detecting every 100 ms!!
 
 When the *set* testing case is running, we start another testing
 case(on same daemon):
-======================================================================
+{{{
 #include <stdio.h>
 #include <string.h>
 #include "memcache.h"
@@ -69,7 +69,7 @@ int main(int argc, char **argv){
    mc_free(mc);
    return 0;
 }
-======================================================================
+}}}
 The total time cost is: 103 second.
 It reads *10000* records per second simultaneously with a heavy load
 of 12000 per second writing!!

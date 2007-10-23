@@ -1,9 +1,14 @@
 #labels Featured
+memcachedb is very fast to get/set a object.
+
 We do a simple testing on a Dell PowerEdge 2850 box that sets
 200,000,000 records into memcachedb with a 16 bytes key and 10 bytes
 value.
 
-Simply start memcachedb with: ./memcachedb -d -r -u root -N
+Simply start memcachedb with: 
+{{{
+./memcachedb -d -r -u root -N
+}}}
 
 And here is testing case:
 

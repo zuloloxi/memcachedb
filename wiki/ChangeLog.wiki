@@ -11,13 +11,11 @@
     * add option "-D" and create a separate thread to do periodic deadlock detecting
 
 2007-10-15 Novey Donar <xiaogang1@staff.sina.com.cn>
-    * remove the item key in data.data, about 50% db file size reduced, but not compatible
-	with previous versions, warning to use.
+    * remove the item key in data.data, about 50% db file size reduced, but not compatible with previous versions, warning to use.
 
 2007-10-08 Steve Chu <zhuxin@staff.sina.com.cn>
     * add option "-L" to allow to set transaction log buffer
-    * add option "-N" to allow to set DB_TXN_NOSYNC flag, if someone wanted
-	lots of performance improved, but warning to use, because it loses transaction's durability
+    * add option "-N" to allow to set DB_TXN_NOSYNC flag, if someone wanted lots of performance improved, but warning to use, because it loses transaction's durability
 
 2007-09-29 Version 0.0.3 released
 

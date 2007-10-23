@@ -1,5 +1,5 @@
 #labels Featured
-memcachedb is very fast to get/set a object.
+memcachedb is very fast to get/set an object.
 
 We do a simple testing on a Dell PowerEdge 2850 box that sets
 200,000,000 records into memcachedb with a 16 bytes key and 10 bytes

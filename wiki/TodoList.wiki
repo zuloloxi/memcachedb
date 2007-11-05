@@ -1,6 +1,3 @@
 #labels Featured
-* allow to put the database and the log files on different disks.
-* better replication code merged
-
 Big TODO:
 using Thread to resolve blocked I/O

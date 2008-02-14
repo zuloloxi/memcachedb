@@ -1,4 +1,6 @@
 #labels Featured
+*This benchmark is for memcachedb-0.1.x. To see latest benchmark, please check [Benchmark].*
+
 memcachedb is very fast to get/set an object.
 
 We do a simple testing on a Dell PowerEdge 2850 box that sets

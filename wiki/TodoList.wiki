@@ -1,4 +1,3 @@
 #labels Featured
 Here're some memcachedb todos:
-  * Add worker thread support, improve performance by sloving blocked I/O
-  * More memcache protocol compatibility 
+  * More BerkeleyDB tuning command

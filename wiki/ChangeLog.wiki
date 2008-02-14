@@ -1,4 +1,16 @@
 #labels Featured
+2008-02-14 Big Version 1.0.0-beta released
+
+2008-02-01 Steve Chu <stvchu@gmail.com>
+    * Almost entire code is rewritten based on Memcached 1.2.x.
+    * More memcache protocol compatibility, now multiple get and flags are supported,
+    also udp and unix socket is ready(not yet tested).
+    * big performance improved due to memcached 1.2.x code base. Thread is
+    used to resolve the blocked I/O.
+    * use standard build tool, "./configure;make;make install" and done.
+    * two new pravite command for replication to set/get priority. See
+    "doc/replication.txt".
+
 2007-01-21 Version 0.1.1 released
 
 2008-01-21 Steve Chu <zhuxin@staff.sina.com.cn>

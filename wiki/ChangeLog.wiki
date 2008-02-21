@@ -1,4 +1,16 @@
 #labels Featured
+2008-02-21 Version 1.0.1-beta released
+
+2008-02-21 Steve Chu <stvchu@gmail.com>
+    * Bugfix: some private commands may cause seg fault
+
+2008-02-20 Steve Chu <stvchu@gmail.com>
+    * Bugfix: incr/decr command did not update length string
+
+2008-02-18 Steve Chu <stvchu@gmail.com>
+    * merge all read-only private command of replication into 'stats rep' that memcached client can read it. Original commands are still available. 'stats bdb' is also provided.   
+    * 'mdbtop.py', a new monitor tool is added for easy maintaining. See 'tools/mdbtop.py'
+
 2008-02-14 Big Version 1.0.0-beta released
 
 2008-02-01 Steve Chu <stvchu@gmail.com>

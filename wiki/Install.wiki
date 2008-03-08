@@ -1,4 +1,3 @@
-#labels Featured,Phase-Deploy
 ===Dependencies===
 
 Before deploying Memcachedb, make sure that following packages installed:

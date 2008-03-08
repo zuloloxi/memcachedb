@@ -1,4 +1,3 @@
-#labels Featured
 *This benchmark is for memcachedb-0.1.x. To see latest benchmark, please check [Benchmark].*
 
 memcachedb is very fast to get/set an object.

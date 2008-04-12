@@ -34,7 +34,6 @@ void bdb_settings_init(void)
     bdb_settings.page_size = 4096;  /* default is 4K */
     bdb_settings.txn_lg_bsize = 32 * 1024; /* default is 32KB */ 
     bdb_settings.txn_nosync = 0; /* default DB_TXN_NOSYNC is off */
-    bdb_settings.sdb_on = 0; 
     bdb_settings.dldetect_val = 100 * 1000; /* default is 100 millisecond */
     bdb_settings.chkpoint_val = 60; /* default is 60 second */
     bdb_settings.db_flags = DB_CREATE | DB_AUTO_COMMIT;
@@ -60,7 +59,6 @@ void bdb_settings_init(void)
     bdb_settings.rep_bulk = 1;
     bdb_settings.rep_req_min = 2;
     bdb_settings.rep_req_max = 8;
-    bdb_settings.db_type = DB_BTREE;
 }
 
 void bdb_env_init(void){
@@ -156,19 +154,14 @@ void bdb_env_init(void){
 void bdb_db_open(void){
     int ret;
     int db_opened = 0;
-    int prim_db_opened = 0;
-    int secn_db_opened = 0;
     /* for replicas to get a full master copy, then open db */
-    while(!db_opened) {
-        /* if replica, just scratch the db file from a master */
-        if (1 == bdb_settings.is_replicated){
-            if (0 == bdb_settings.rep_is_master) {
-                bdb_settings.db_flags = DB_AUTO_COMMIT;
-            }else if (1 == bdb_settings.rep_is_master) {
-                bdb_settings.db_flags = DB_CREATE | DB_AUTO_COMMIT;
-            }else{
-                /* do nothing */
-            }
+    while(0 == db_opened) {
+        if (0 == bdb_settings.rep_is_master) {
+           bdb_settings.db_flags = DB_AUTO_COMMIT;
+        }else if (1 == bdb_settings.rep_is_master) {
+            bdb_settings.db_flags = DB_CREATE | DB_AUTO_COMMIT;
+        }else{
+            /* do nothing */
         }
 
         bdb_db_close();
@@ -183,93 +176,22 @@ void bdb_db_open(void){
             exit(EXIT_FAILURE);
         }
 
-        /* try to open db*/
-        ret = dbp->open(dbp, NULL, bdb_settings.db_file, NULL, bdb_settings.db_type, bdb_settings.db_flags, 0664);         
-        switch (ret){
-        case 0:
-            prim_db_opened = 1;
-            break;
-        case ENOENT:
-        case DB_LOCK_DEADLOCK:
-        case DB_REP_LOCKOUT:
-            fprintf(stderr, "db_open: %s\n", db_strerror(ret));
-            sleep(3);
-            break;
-        default:
+        if ((ret = dbp->open(dbp, NULL, bdb_settings.db_file, NULL, DB_BTREE, bdb_settings.db_flags, 0664)) != 0) {
+            if ((ret == ENOENT) || (ret == DB_LOCK_DEADLOCK) || (ret = DB_REP_LOCKOUT)) {
+                fprintf(stderr, "No [%s] database yet available.\n", bdb_settings.db_file);
+                fprintf(stderr, "db_ismaster: [%d], we are syncing with master..\n", bdb_settings.rep_is_master);
+                db_opened = 0;
+                sleep(3);
+                continue;
+            }
             fprintf(stderr, "db_open: %s\n", db_strerror(ret));
             exit(EXIT_FAILURE);
-        }
-
-        /* open second databse */
-        if (bdb_settings.sdb_on){
-            char sdb_filename[256];
-            sprintf(sdb_filename, "s_%s", bdb_settings.db_file);
-
-            if ((ret = db_create(&sdbp, env, 0)) != 0) {
-                fprintf(stderr, "db_create: %s\n", db_strerror(ret));
-                exit(EXIT_FAILURE);
-            }
-            /* set page size */
-            if((ret = sdbp->set_pagesize(sdbp, bdb_settings.page_size)) != 0){
-                fprintf(stderr, "dbp->set_pagesize: %s\n", db_strerror(ret));
-                exit(EXIT_FAILURE);
-            }
-            /* allow sorted duplicates. */
-            if((ret = sdbp->set_flags(sdbp, DB_DUPSORT)) != 0){
-                fprintf(stderr, "dbp->set_flags: %s\n", db_strerror(ret));
-                exit(EXIT_FAILURE);
-            }
-         
-            /* try to open db*/
-            ret = sdbp->open(sdbp, NULL, sdb_filename, NULL, bdb_settings.db_type, bdb_settings.db_flags, 0664);         
-            switch (ret){
-            case 0:
-                secn_db_opened = 1;
-                break;
-            case ENOENT:
-            case DB_LOCK_DEADLOCK:
-            case DB_REP_LOCKOUT:
-                fprintf(stderr, "db_open: %s\n", db_strerror(ret));
-                sleep(3);
-                break;
-            default:
-                fprintf(stderr, "db_open: %s\n", db_strerror(ret));
-                exit(EXIT_FAILURE);
-            }
-
-            if (prim_db_opened && secn_db_opened){
-                db_opened = 1; 
-                /* associate the secondary to the primary */
-                dbp->associate(dbp, NULL, sdbp, sdb_callback, 0);
-            }
         }else{
-            if (prim_db_opened){
-                db_opened = 1;
-            }
+            db_opened = 1;
         }
     }
 
 }
-
-int
-sdb_callback(DB *sdbp,          /* secondary db handle */
-             const DBT *pkey,   /* primary db record's key */
-             const DBT *pdata,  /* primary db record's data */
-             DBT *skey)         /* secondary db record's key */
-{
-    item *it;
-
-    /* First, extract the structure contained in the primary's data */
-    it = pdata->data;
-
-    /* Now set the secondary key's data */
-    memset(skey, 0, sizeof(DBT));
-    skey->data = ITEM_data(it);
-    skey->size = it->nbytes;
-
-    /* Return 0 to indicate that the record can be created/updated. */
-    return (0);
-} 
 
 void start_chkpoint_thread(void){
     if (bdb_settings.chkpoint_val > 0){
@@ -363,18 +285,6 @@ void bdb_event_callback(DB_ENV *env, u_int32_t which, void *info)
 /* for atexit cleanup */
 void bdb_db_close(void){
     int ret = 0;
-    /* close second db before primary db */
-    if (bdb_settings.sdb_on){
-        if (sdbp != NULL) {
-            ret = sdbp->close(sdbp, 0);
-            if (0 != ret){
-                fprintf(stderr, "sdbp->close: %s\n", db_strerror(ret));
-            }else{
-                sdbp = NULL;
-                fprintf(stderr, "sdbp->close: OK\n");
-            }
-        }   
-    }
     if (dbp != NULL) {
         ret = dbp->close(dbp, 0);
         if (0 != ret){

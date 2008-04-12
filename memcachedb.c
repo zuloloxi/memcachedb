@@ -107,7 +107,6 @@ struct settings settings;
 struct bdb_settings bdb_settings;
 DB_ENV *env;
 DB *dbp;
-DB *sdbp;
 
 int daemon_quit = 0;
 
@@ -867,15 +866,6 @@ static void process_stat(conn *c, token_t *tokens, const size_t ntokens) {
         if((ret = dbp->get_pagesize(dbp, &bdb_settings.page_size)) == 0){
             pos += sprintf(pos, "STAT page_size %u\r\n", bdb_settings.page_size);
         }
-        /* get database type */
-        if((ret = dbp->get_type(dbp, &bdb_settings.db_type)) == 0){
-            if (bdb_settings.db_type == DB_BTREE){
-                pos += sprintf(pos, "STAT db_type btree\r\n");
-            }else if (bdb_settings.db_type == DB_HASH){
-                pos += sprintf(pos, "STAT db_type hash\r\n");
-            }
-        }
-        pos += sprintf(pos, "STAT sdb_on %d\r\n", bdb_settings.sdb_on);
         pos += sprintf(pos, "STAT txn_lg_bsize %u\r\n", bdb_settings.txn_lg_bsize);
         pos += sprintf(pos, "STAT txn_nosync %d\r\n", bdb_settings.txn_nosync);
         pos += sprintf(pos, "STAT dldetect_val %d\r\n", bdb_settings.dldetect_val);
@@ -1145,154 +1135,6 @@ static inline void process_get_command(conn *c, token_t *tokens, size_t ntokens)
     stats.get_hits   += stats_get_hits;
     stats.get_misses += stats_get_misses;
     STATS_UNLOCK();
-
-    return;
-}
-
-static inline void process_pget_command(conn *c, token_t *tokens, size_t ntokens, int comm) {
-    char *key;
-    size_t nkey;
-    int i = 0;
-    int ret = 0;
-    item *it;
-    token_t *key_token = &tokens[KEY_TOKEN];
-    DBT dbkey, dbdata;
-    DBC *cursorp;
-    char prefix[KEY_MAX_LENGTH + 1];
-    assert(c != NULL);
-
-    /* get prefix */
-    key = key_token->value;
-    nkey = key_token->length;
-    if(nkey > KEY_MAX_LENGTH) {
-        out_string(c, "CLIENT_ERROR bad command line format");
-        return;
-    }
-    memcpy(prefix, key_token->value, key_token->length);
-    prefix[key_token->length] = '\0';
-
-    /* get a cursor */
-    if (comm == PKGET){
-        dbp->cursor(dbp, NULL, &cursorp, 0);
-    } else if (comm == PVGET){
-        sdbp->cursor(sdbp, NULL, &cursorp, 0);
-    } else {
-        /* nothing happened */
-    }
-
-    /* alloc next item buffer */
-    it = item_alloc(key, nkey, 0, 0);
-    if (it == 0) {
-        out_string(c, "SERVER_ERROR out of memory");
-        return;
-    }
-    /* get first item from bdb */
-    BDB_CLEANUP_DBT();
-    dbkey.data = prefix;
-    dbkey.size = strlen(prefix);
-    dbkey.ulen = KEY_MAX_LENGTH + 1;
-    dbkey.flags = DB_DBT_USERMEM | DB_DBT_PARTIAL;
-    dbkey.doff = 0;
-    dbkey.dlen = KEY_MAX_LENGTH;
-    dbdata.data = it;
-    dbdata.ulen = settings.item_buf_size;
-    dbdata.flags = DB_DBT_USERMEM;
-    if (bdb_settings.db_type == DB_HASH){
-        ret = cursorp->get(cursorp, &dbkey, &dbdata, DB_SET);
-    } else if (bdb_settings.db_type == DB_BTREE){
-        ret = cursorp->get(cursorp, &dbkey, &dbdata, DB_SET_RANGE);
-    } else {
-        /* do nothing */
-    }
-
-    if (ret || (0 != strncmp(key, prefix, nkey))){
-        /* never leak memory */
-        if(item_add_to_freelist(it)) {
-            free(it);
-        }
-        it = 0;
-    }
-
-    while (it) {
-        if (i >= c->isize) {
-            item **new_list = realloc(c->ilist, sizeof(item *) * c->isize * 2);
-            if (new_list) {
-                c->isize *= 2;
-                c->ilist = new_list;
-            } else break;
-        }
-
-        /*
-         * Construct the response. Each hit adds three elements to the
-         * outgoing data list:
-         *   "VALUE "
-         *   key
-         *   " " + flags + " " + data length + "\r\n" + data (with \r\n)
-         */
-
-        if (add_iov(c, "VALUE ", 6) != 0 ||
-           add_iov(c, ITEM_key(it), it->nkey) != 0 ||
-           add_iov(c, ITEM_suffix(it), it->nsuffix + it->nbytes) != 0)
-           {
-               break;
-           }
-
-        if (settings.verbose > 1)
-            fprintf(stderr, ">%d sending key %s\n", c->sfd, ITEM_key(it));
-
-        *(c->ilist + i) = it;
-        i++;
-
-        /* alloc next item buffer */
-        it = item_alloc(key, nkey, 0, 0);
-        if (it == 0) {
-            out_string(c, "SERVER_ERROR out of memory");
-            return;
-        }
-        /*get next item from bdb */
-        BDB_CLEANUP_DBT();
-        dbkey.data = prefix;
-        dbkey.size = strlen(prefix);
-        dbkey.ulen = KEY_MAX_LENGTH + 1;
-        dbkey.flags = DB_DBT_USERMEM | DB_DBT_PARTIAL;
-        dbkey.doff = 0;
-        dbkey.dlen = KEY_MAX_LENGTH;
-        dbdata.data = it;
-        dbdata.ulen = settings.item_buf_size;
-        dbdata.flags = DB_DBT_USERMEM;
-        ret = cursorp->get(cursorp, &dbkey, &dbdata, DB_NEXT);
-
-        if (ret || (0 != strncmp(key, prefix, nkey))){
-            /* never leak memory */
-            if(item_add_to_freelist(it)) {
-                free(it);
-            }
-            it = 0;
-            break;
-        }
-    }
-
-    c->icurr = c->ilist;
-    c->ileft = i;
-
-    /* Close the cursor */
-    if (cursorp != NULL) 
-        cursorp->close(cursorp);
-
-    if (settings.verbose > 1)
-        fprintf(stderr, ">%d END\n", c->sfd);
-
-    /*
-        If the loop was terminated because of out-of-memory, it is not
-        reliable to add END\r\n to the buffer, because it might not end
-        in \r\n. So we send SERVER_ERROR instead.
-    */
-    if (add_iov(c, "END\r\n", 5) != 0 || (c->udp && build_udp_headers(c) != 0)) {
-        out_string(c, "SERVER_ERROR out of memory");
-    } else {
-        conn_set_state(c, conn_mwrite);
-        c->msgcurr = 0;
-    }
 
     return;
 }
@@ -1710,12 +1552,6 @@ static void process_command(conn *c, char *command) {
         (strcmp(tokens[COMMAND_TOKEN].value, "get") == 0) ) {
 
         process_get_command(c, tokens, ntokens);
-
-    } else if (ntokens == 3 && 
-               ((strcmp(tokens[COMMAND_TOKEN].value, "pkget") == 0 && (comm = PKGET)) ||
-                (strcmp(tokens[COMMAND_TOKEN].value, "pvget") == 0 && (comm = PVGET) && bdb_settings.sdb_on))) {
-
-        process_pget_command(c, tokens, ntokens, comm);
 
     } else if (ntokens == 6 &&
                ((strcmp(tokens[COMMAND_TOKEN].value, "add") == 0 && (comm = NREAD_ADD)) ||
@@ -2458,14 +2294,12 @@ static void usage(void) {
     printf("--------------------BerkeleyDB Options-------------------------------\n");
     printf("-m <num>      in-memmory cache size of BerkeleyDB in megabytes, default is 64MB\n");
     printf("-A <num>      underlying page size in bytes, default is 4096, (512B ~ 64KB, power-of-two)\n");
-    printf("-f <file>     filename of database, default is 'default.db'\n");
-    printf("-H <dir>      env home of database, default is '/data1/memcachedb'\n");
-    printf("-T <db_type>  type of database, 'btree' or 'hash'. default is 'btree'\n");
+    printf("-f <file>     filename of database, default is /data1/memcachedb/default.db\n");
+    printf("-H <dir>      env home of database, default is /data1/memcachedb\n");
     printf("-L <num>      log buffer size in kbytes, default is 32KB\n");
-    printf("-C <num>      do checkpoint every <num> seconds, 0 for disable, default is 60s\n");
-    printf("-D <num>      do deadlock detecting every <num> millisecond, 0 for disable, default is 100ms\n");
+    printf("-C <num>      do checkpoint every XX seconds, 0 for disable, default is 60s\n");
+    printf("-D <num>      do deadlock detecting every XXX millisecond, 0 for disable, default is 100ms\n");
     printf("-N            enable DB_TXN_NOSYNC to gain big performance improved, default is off\n");
-    printf("-E            enable second database that you can use 'pvget' to get values by prefix, default is off\n");
     printf("--------------------Replication Options-------------------------------\n");
     printf("-R            identifies the host and port used by this site (required).\n");
     printf("-O            identifies another site participating in this replication group\n");
@@ -2662,7 +2496,7 @@ int main (int argc, char **argv) {
     setbuf(stderr, NULL);
 
     /* process arguments */
-    while ((c = getopt(argc, argv, "a:U:p:s:c:hikvl:dru:P:t:b:f:H:T:m:A:L:C:D:NEMSR:O:")) != -1) {
+    while ((c = getopt(argc, argv, "a:U:p:s:c:hikvl:dru:P:t:b:f:H:m:A:L:C:D:NMSR:O:")) != -1) {
         switch (c) {
         case 'a':
             /* access for unix domain socket, as octal mask (like chmod)*/
@@ -2730,20 +2564,10 @@ int main (int argc, char **argv) {
             } 
             break;
         case 'f':
-            bdb_settings.db_file = optarg;
+           bdb_settings.db_file = optarg;
             break;
         case 'H':
-            bdb_settings.env_home = optarg;
-            break;
-        case 'T':
-            if (0 == strcmp(optarg, "btree")){
-                bdb_settings.db_type = DB_BTREE;
-            }else if (0 == strcmp(optarg, "hash")){
-                bdb_settings.db_type = DB_HASH;
-            }else{
-                fprintf(stderr, "Unknown databasetype, only 'btree' or 'hash' is available.\n");
-                exit(1);
-            }
+           bdb_settings.env_home = optarg;
             break;
         case 'm':
             bdb_settings.cache_size = atoi(optarg) * 1024 * 1024;
@@ -2752,19 +2576,16 @@ int main (int argc, char **argv) {
             bdb_settings.page_size = atoi(optarg);
             break;
         case 'L':
-            bdb_settings.txn_lg_bsize = atoi(optarg) * 1024;
+           bdb_settings.txn_lg_bsize = atoi(optarg) * 1024;
             break;
         case 'C':
-            bdb_settings.chkpoint_val = atoi(optarg);
+           bdb_settings.chkpoint_val = atoi(optarg);
             break;
         case 'D':
-            bdb_settings.dldetect_val = atoi(optarg) * 1000;
+           bdb_settings.dldetect_val = atoi(optarg) * 1000;
             break;
         case 'N':
-            bdb_settings.txn_nosync = 1;
-            break;
-        case 'E':
-            bdb_settings.sdb_on = 1;
+           bdb_settings.txn_nosync = 1;
             break;
         case 'M':
             if (bdb_settings.rep_start_policy == DB_REP_CLIENT){

@@ -262,40 +262,6 @@ class Client(local):
             if not s.connect(): continue
             s.send_cmd('rep_set_request %d %d' % (req_min, req_max))
             return(s.readline())
-    
-    def pkget(self, prefix):
-        'get item with key prefix'
-        retvals = {}
-        for s in self.servers:
-            if not s.connect(): continue
-            s.send_cmd('pkget %s' % (prefix, ))
-            line = s.readline()
-            while line and line != 'END':
-                if line[:5] == 'VALUE':
-                    resp, rkey, flags, len = line.split()
-                    line = s.readline()
-                    value = line[:-2]
-                    line = s.readline()
-                retvals[rkey] = value
-        return retvals
-
-    def pvget(self, prefix):
-        'get item with value prefix'
-        retvals = {}
-        for s in self.servers:
-            if not s.connect(): continue
-            s.send_cmd('pvget %s' % (prefix, ))
-            line = s.readline()
-            while line and line != 'END':
-                if line[:5] == 'VALUE':
-                    resp, rkey, flags, len = line.split()
-                    line = s.readline()
-                    value = line[:-2]
-                    line = s.readline()
-                retvals[rkey] = value
-        return retvals
-
-
 
     def debuglog(self, str):
         if self.debug:

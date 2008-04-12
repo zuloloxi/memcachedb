@@ -119,8 +119,6 @@ struct bdb_settings {
     u_int32_t rep_req_max;
     u_int32_t rep_req_min;
     u_int32_t page_size;
-    DBTYPE db_type;
-    int sdb_on; /* enable second database */
 };
 
 typedef struct _stritem {
@@ -153,8 +151,6 @@ enum conn_states {
 #define NREAD_ADD 1
 #define NREAD_SET 2
 #define NREAD_REPLACE 3
-#define PKGET 4
-#define PVGET 5
 
 typedef struct {
     int    sfd;
@@ -231,7 +227,6 @@ void start_dl_detect_thread(void);
 void *bdb_chkpoint_thread __P((void *));
 void *bdb_dl_detect_thread __P((void *));
 void bdb_event_callback __P((DB_ENV *, u_int32_t, void *));
-int  sdb_callback(DB *sdbp, const DBT *pkey, const DBT *pdata, DBT *skey);
 void bdb_db_close(void);
 void bdb_env_close(void);
 void bdb_chkpoint(void);
@@ -318,5 +313,4 @@ extern struct settings settings;
 extern struct bdb_settings bdb_settings;
 extern DB_ENV *env;
 extern DB *dbp;
-extern DB *sdbp;
 extern int daemon_quit;

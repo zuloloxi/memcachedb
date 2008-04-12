@@ -1,13 +1,3 @@
-2008-04-03 Steve Chu <stvchu@gmail.com>
-   * New features: 
-     - add '-T' option to set database type, 'btree' or 'hash'
-     - add '-E' option to enable second database, so we can use 'pvget'
-     - new command 'pkget' that you can get items with a key prefix
-     - new command 'pvget' that you can get items with a value prefix
-   * Changes:
-     - add support to memcache.py for 'pkget' and 'pvget' command, see
-	 'tools/memcache.py'
-
 2008-03-21 Version 1.0.3 released
 
 2008-03-21 Steve Chu <stvchu@gmail.com>
